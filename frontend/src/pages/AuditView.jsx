@@ -1,5 +1,10 @@
 import React from 'react';
 
+const eventTypeLabels = {
+  TRANSACTION_ANALYSIS: 'Transaction Analysis',
+  AI_INVESTIGATION_COMPLETED: 'AI Investigation Completed'
+};
+
 export default function AuditView({ logs }) {
   return (
     <div class="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden shadow-md">
@@ -25,7 +30,7 @@ export default function AuditView({ logs }) {
               logs.map((log) => (
                 <tr key={log.id} class="hover:bg-gray-750 transition">
                   <td class="px-6 py-4 text-xs font-mono text-gray-500">#{log.id}</td>
-                  <td class="px-6 py-4 font-semibold text-indigo-400 text-xs">{log.event_type}</td>
+                  <td class="px-6 py-4 font-semibold text-indigo-400 text-xs">{eventTypeLabels[log.event_type] || log.event_type}</td>
                   <td class="px-6 py-4 font-mono text-xs text-white">{log.transaction_id}</td>
                   <td class="px-6 py-4 text-xs text-gray-400">
                     {new Date(log.timestamp).toLocaleString()}

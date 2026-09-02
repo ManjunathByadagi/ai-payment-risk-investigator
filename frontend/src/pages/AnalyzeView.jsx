@@ -60,6 +60,7 @@ export default function AnalyzeView({ initialData, onAnalyze, onTriggerInvestiga
       {/* Left Column: Input Form */}
       <div class="bg-gray-800 p-6 rounded-xl border border-gray-700 shadow-md">
         <h2 class="text-lg font-bold text-white mb-4">Transaction Risk Parameters</h2>
+        <p class="text-xs text-gray-400 mb-4">High-risk transactions trigger bounded evidence investigation (maximum 4 tool calls).</p>
         <form onSubmit={handleSubmit} class="space-y-4">
           <div class="grid grid-cols-2 gap-4">
             <div>
@@ -314,6 +315,12 @@ export default function AnalyzeView({ initialData, onAnalyze, onTriggerInvestiga
               <div class="bg-gray-900 p-3 rounded-lg border border-gray-700">
                 <span class="text-gray-400 block">Recommended Action</span>
                 <span class="text-sm font-bold text-amber-400">{investigationResult.recommended_action}</span>
+              </div>
+              <div class="bg-gray-900 p-3 rounded-lg border border-gray-700">
+                <span class="text-gray-400 block">Investigation Confidence</span>
+                <span class="text-sm font-bold text-indigo-300">
+                  {typeof investigationResult.confidence_score === 'number' ? `${(investigationResult.confidence_score * 100).toFixed(1)}%` : 'Unavailable'}
+                </span>
               </div>
             </div>
 

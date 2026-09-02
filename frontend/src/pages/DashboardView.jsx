@@ -26,7 +26,7 @@ export default function DashboardView({ summary, recentTxns, onSelectTxn, onPopu
         </div>
 
         <div class="bg-gray-800 p-5 rounded-xl border border-indigo-900/40 shadow-sm">
-          <p class="text-xs font-semibold text-indigo-400 uppercase tracking-wider">Avg Risk Score</p>
+          <p class="text-xs font-semibold text-indigo-400 uppercase tracking-wider">Average Risk Probability</p>
           <p class="text-2xl font-bold text-indigo-400 mt-2">{summary?.avg_risk_score ? (summary.avg_risk_score * 100).toFixed(1) + '%' : '0.0%'}</p>
         </div>
       </div>
@@ -72,7 +72,7 @@ export default function DashboardView({ summary, recentTxns, onSelectTxn, onPopu
       <div class="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
         <div class="px-6 py-4 border-b border-gray-700 flex justify-between items-center">
           <h3 class="text-base font-semibold text-white">Recent Evaluated Transactions</h3>
-          <span class="text-xs text-gray-400">Real-time Stream</span>
+          <span class="text-xs text-gray-400">Recent Analysis Results</span>
         </div>
         <div class="overflow-x-auto">
           <table class="w-full text-left text-sm text-gray-300">
