@@ -204,6 +204,59 @@ Select next tool from: {list(self.TOOLS.keys())} or 'stop'.
             pass
         return None
 
+    def _calculate_investigation_confidence(
+        self,
+        evidence: Dict[str, Any],
+        steps: List[InvestigationStep],
+        evidence_strength: str
+    ) -> float:
+        """Calculate reproducible confidence from verified investigation evidence."""
+        executed_results = [
+            step.tool_result for step in steps
+            if isinstance(step.tool_result, dict)
+        ]
+        verified_results = []
+        verified_tool_names = set()
+        for step in steps:
+            result = step.tool_result
+            if not isinstance(result, dict):
+                continue
+            status = str(result.get("status", "")).upper()
+            if status in {"NOT CHECKED", "NOT_AVAILABLE", "NOT AVAILABLE"}:
+                continue
+            if status and status != "VERIFIED":
+                continue
+            if result:
+                verified_results.append(result)
+                verified_tool_names.add(step.tool_name)
+
+        total_tools = len(executed_results)
+        if total_tools == 0:
+            return 0.0
+
+        verified_count = len(verified_results)
+        verified_coverage = verified_count / self.MAX_TOOL_CALLS
+        execution_quality = verified_count / total_tools
+        strength_factor = {
+            "LOW": 0.0,
+            "MEDIUM": 0.5,
+            "HIGH": 1.0,
+        }.get(evidence_strength, 0.0)
+
+        # Keep strength gated by verified coverage so unchecked tools cannot raise
+        # confidence; distinct verified tools add graduated corroboration.
+        execution_completeness = verified_coverage
+        execution_quality = verified_count / total_tools
+        corroboration = min(1.0, max(0, len(verified_tool_names) - 1) / 3.0)
+        confidence = (
+            0.35 * verified_coverage
+            + 0.20 * (strength_factor * verified_coverage)
+            + 0.20 * corroboration
+            + 0.10 * execution_quality
+            + 0.05 * execution_completeness
+        )
+        return round(max(0.0, min(1.0, confidence)), 3)
+
     def _calculate_evidence_strength(self, evidence: Dict[str, Any]) -> str:
         confirmed = 0
         geo = evidence.get("check_geographic_consistency", {})
@@ -266,11 +319,11 @@ Select next tool from: {list(self.TOOLS.keys())} or 'stop'.
         # Determine Recommendation
         if high_severity_count >= 2 or prob >= 0.75 or (geo.get("geographic_mismatch") and vel.get("velocity_status") == "HIGH"):
             recommended_action = "MANUAL_REVIEW"
-            confidence = 0.92
+            confidence = self._calculate_investigation_confidence(evidence, steps, evidence_strength)
             summary_lines.append("\nFinal Assessment: Multiple corroborated high-risk indicators confirmed by tools. Flagged for Manual Review.")
         else:
             recommended_action = "MONITOR"
-            confidence = 0.78
+            confidence = self._calculate_investigation_confidence(evidence, steps, evidence_strength)
             summary_lines.append("\nFinal Assessment: Moderate anomalous signals detected. Recommending enhanced monitoring.")
 
         return InvestigationReport(
@@ -316,6 +369,7 @@ Select next tool from: {list(self.TOOLS.keys())} or 'stop'.
 
             evidence_strength = self._calculate_evidence_strength(evidence)
             evidence["_evidence_strength"] = evidence_strength
+            confidence = self._calculate_investigation_confidence(evidence, steps, evidence_strength)
 
             return InvestigationReport(
                 transaction_id=txn_id,
@@ -324,7 +378,7 @@ Select next tool from: {list(self.TOOLS.keys())} or 'stop'.
                 evidence=evidence,
                 investigation_steps=steps,
                 investigation_summary=llm_summary,
-                confidence_score=0.90,
+                confidence_score=confidence,
                 evidence_strength=evidence_strength,
                 tools_executed_count=len(steps),
                 max_tools=self.MAX_TOOL_CALLS,

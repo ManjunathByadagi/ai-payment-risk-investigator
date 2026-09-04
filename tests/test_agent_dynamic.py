@@ -233,6 +233,78 @@ def test_evidence_strength_metadata_present():
     assert report.tools_executed_count > 0
     assert report.max_tools == 4
 
+def test_investigation_confidence_is_dynamic_and_bounded():
+    agent = RiskInvestigatorAgent()
+    low_evidence = agent.investigate(
+        {"transaction_id": "TXN_CONF_LOW", "customer_id": "CUST_CONF_LOW"},
+        {"risk_probability": 0.31, "risk_level": "MEDIUM", "risk_signals": []}
+    )
+    high_evidence = agent.investigate(
+        {
+            "transaction_id": "TXN_CONF_HIGH",
+            "customer_id": "CUST_CONF_HIGH",
+            "merchant_id": "MERCH_CONF_HIGH",
+            "device_id": "DEV_CONF_HIGH",
+            "device_new": 1,
+            "ip_risk_score": 0.9,
+            "transactions_last_10_minutes": 5,
+            "customer_country": "IN",
+            "transaction_country": "US",
+            "amount": 10000.0,
+            "average_customer_amount": 100.0,
+        },
+        {
+            "risk_probability": 0.95,
+            "risk_level": "HIGH",
+            "risk_signals": [
+                {"signal": "new_device", "severity": "high"},
+                {"signal": "high_velocity", "severity": "high"},
+                {"signal": "geographic_mismatch", "severity": "high"},
+                {"signal": "amount_deviation", "severity": "high"},
+            ],
+        }
+    )
+
+    assert 0.0 <= low_evidence.confidence_score <= 1.0
+    assert 0.0 <= high_evidence.confidence_score <= 1.0
+    assert low_evidence.confidence_score != high_evidence.confidence_score
+
+def test_investigation_confidence_excludes_unverified_states():
+    agent = RiskInvestigatorAgent()
+    steps = [
+        type("Step", (), {"tool_name": "device", "tool_result": {"status": "VERIFIED", "value": True}})(),
+        type("Step", (), {"tool_name": "velocity", "tool_result": {"status": "NOT CHECKED"}})(),
+        type("Step", (), {"tool_name": "geo", "tool_result": {"status": "NOT AVAILABLE"}})(),
+    ]
+
+    confidence = agent._calculate_investigation_confidence({}, steps, "MEDIUM")
+    expected = agent._calculate_investigation_confidence({}, steps[:1], "MEDIUM")
+
+    assert confidence < expected
+    assert 0.0 <= confidence <= 1.0
+
+def test_investigation_confidence_graduates_without_saturating():
+    agent = RiskInvestigatorAgent()
+    no_verified = [
+        type("Step", (), {"tool_name": "device", "tool_result": {"status": "NOT CHECKED"}})()
+    ]
+    partial = [
+        type("Step", (), {"tool_name": "device", "tool_result": {"status": "VERIFIED", "value": True}})(),
+        type("Step", (), {"tool_name": "velocity", "tool_result": {"status": "VERIFIED", "value": True}})(),
+    ]
+    strong = [
+        type("Step", (), {"tool_name": name, "tool_result": {"status": "VERIFIED", "value": True}})()
+        for name in ["device", "velocity", "geo", "customer"]
+    ]
+
+    no_verified_confidence = agent._calculate_investigation_confidence({}, no_verified, "HIGH")
+    partial_confidence = agent._calculate_investigation_confidence({}, partial, "MEDIUM")
+    strong_confidence = agent._calculate_investigation_confidence({}, strong, "HIGH")
+
+    assert no_verified_confidence < partial_confidence < strong_confidence < 1.0
+    assert strong_confidence == 0.9
+    assert round(strong_confidence, 3) == strong_confidence
+
 def test_multi_signal_uses_full_4_tool_budget():
     agent = RiskInvestigatorAgent()
     txn = {
